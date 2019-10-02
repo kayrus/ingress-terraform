@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: terraform
+    terraform.ingress.kubernetes.io/internal: "false"
+  name: test-terraform-ingress
+spec:
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - backend:
+          serviceName: my-service
+          servicePort: 8080
+        path: /foo
+  tls:
+  - hosts:
+    - example.com
+    secretName: tls

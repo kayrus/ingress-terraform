@@ -1,0 +1,20 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: terraform-ingress-controller-config
+data:
+  config: |
+    cluster-name: terraform-ingress-cluster
+    openstack:
+      auth-url: %auth_url%
+      application-credential-id: %app_cred_id%
+      application-credential-secret: %app_cred_secret%
+    terraform:
+      subnet-id: 058d9dce-7a62-4d8c-ac82-6b217d697e81
+      floating-network-id: 8f408a7c-4d03-4355-81c1-07713fa0caec
+      floating-subnet-id: 9206c010-882f-4059-914e-f25b33139c40
+      manage-security-groups: true
+      create-monitor: true
+      monitor-delay: "5"
+      monitor-timeout: "3"
+      monitor-max-retries: 3

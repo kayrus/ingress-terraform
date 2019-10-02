@@ -1,0 +1,51 @@
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: terraform-ingress-controller
+  namespace: kube-system
+  labels:
+    k8s-app: terraform-ingress-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: terraform-ingress-controller
+  serviceName: terraform-ingress-controller
+  template:
+    metadata:
+      labels:
+        k8s-app: terraform-ingress-controller
+    spec:
+      serviceAccountName: terraform-ingress-controller
+      tolerations:
+        - effect: NoSchedule # Make sure the pod can be scheduled on master kubelet.
+          operator: Exists
+        - key: CriticalAddonsOnly # Mark the pod as a critical add-on for rescheduling.
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      containers:
+        - name: terraform-ingress-controller
+          image: kayrus/ingress-terraform:latest
+          imagePullPolicy: Always
+          args:
+            - /bin/terraform-ingress-controller
+            - --config=/etc/config/terraform-ingress-controller-config.yaml
+          volumeMounts:
+            - mountPath: /etc/kubernetes
+              name: kubernetes-config
+              readOnly: true
+            - name: ingress-config
+              mountPath: /etc/config
+      hostNetwork: true
+      volumes:
+        - name: kubernetes-config
+          hostPath:
+            path: /etc/kubernetes
+            type: Directory
+        - name: ingress-config
+          configMap:
+            name: terraform-ingress-controller-config
+            items:
+              - key: config
+                path: terraform-ingress-controller-config.yaml
