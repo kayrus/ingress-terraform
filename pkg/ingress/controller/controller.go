@@ -77,6 +77,12 @@ const (
 
 	// The IngressControllerTag that is added to the related resources.
 	IngressControllerTag = "terraform.ingress.kubernetes.io"
+
+	// The IngressAnnotationTCPConfigMap specifies the TCP configmap name to be used by the terraform to create a loadbalancer
+	IngressAnnotationTCPConfigMap = "terraform.ingress.kubernetes.io/tcp-configmap"
+
+	// The IngressAnnotationTemplate specifies the go template to used by the terraform to create a loadbalancer
+	IngressAnnotationTemplate = "terraform.ingress.kubernetes.io/template"
 )
 
 // EventType type of event associated with an informer
@@ -728,65 +734,68 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 
 	// Direct TCP
 	// TODO: watch for configmap modifications
-	configMapName := fmt.Sprintf("%s/%s", ingNamespace, "ingress-tcp-services") // TODO: parametrize
-	if v, err := c.getConfigMap(configMapName); err != nil {
-		log.Printf("Failed to get the %q configmap, ignoring TCP listeners: %v", configMapName, err)
-	} else {
-		for port, svc := range v.Data {
-			tcpPort, err := strconv.Atoi(port)
-			if err != nil {
-				return fmt.Errorf("failed to convert the %q to a number: %v", port, err)
-			}
+	if v := getStringFromIngressAnnotation(ing, IngressAnnotationTCPConfigMap, ""); v != "" {
+		configMapName := fmt.Sprintf("%s/%s", ingNamespace, v)
+		if v, err := c.getConfigMap(configMapName); err != nil {
+			return fmt.Errorf("failed to get the %q TCP configmap: %v", configMapName, err)
+		} else {
+			for port, svc := range v.Data {
+				tcpPort, err := strconv.Atoi(port)
+				if err != nil {
+					return fmt.Errorf("failed to convert the %q to a number: %v", port, err)
+				}
 
-			// check tcp port
-			if tcpPort == 80 || tcpPort == 443 {
-				return fmt.Errorf("the 80 or 443 ports are not allowed")
-			}
-			if tcpPort < 1 || tcpPort > 65535 {
-				return fmt.Errorf("the %d port is out of range", tcpPort)
-			}
-			if tcpPortExists(&lb.TCP, tcpPort) {
-				return fmt.Errorf("the %d port is already defined", tcpPort)
-			}
+				// check tcp port
+				if tcpPort == 80 || tcpPort == 443 {
+					return fmt.Errorf("the 80 or 443 ports are not allowed")
+				}
+				if tcpPort < 1 || tcpPort > 65535 {
+					return fmt.Errorf("the %d port is out of range", tcpPort)
+				}
+				if tcpPortExists(&lb.TCP, tcpPort) {
+					return fmt.Errorf("the %d port is already defined", tcpPort)
+				}
 
-			s := strings.SplitN(svc, ":", 2)
-			if len(s) != 2 {
-				return fmt.Errorf("failed to parse the %q to a service name and a port", svc)
+				s := strings.SplitN(svc, ":", 2)
+				if len(s) != 2 {
+					return fmt.Errorf("failed to parse the %q to a service name and a port", svc)
+				}
+
+				serviceName := fmt.Sprintf("%s/%s", ingNamespace, s[0])
+				poolName := fmt.Sprintf("tcp_pool_%s_%s_%s", ingNamespace, s[0], s[1])
+
+				nodePort, err := c.getServiceNodePort(serviceName, intstr.Parse(s[1]))
+				if err != nil {
+					return err
+				}
+
+				lb.TCP = append(lb.TCP, terraform.TCP{
+					PoolName: poolName,
+					Port:     tcpPort,
+				})
+
+				if poolExists(&lb.Pools, poolName) {
+					continue
+				}
+
+				pool := terraform.Pool{
+					Name:     poolName,
+					Protocol: "TCP",
+					Method:   "ROUND_ROBIN",
+				}
+
+				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
+					return fmt.Errorf("failed to convert a node list to a member list: %v", err)
+				}
+
+				lb.Pools = append(lb.Pools, pool)
 			}
-
-			serviceName := fmt.Sprintf("%s/%s", ingNamespace, s[0])
-			poolName := fmt.Sprintf("tcp_pool_%s_%s_%s", ingNamespace, s[0], s[1])
-
-			nodePort, err := c.getServiceNodePort(serviceName, intstr.Parse(s[1]))
-			if err != nil {
-				return err
-			}
-
-			lb.TCP = append(lb.TCP, terraform.TCP{
-				PoolName: poolName,
-				Port:     tcpPort,
-			})
-
-			if poolExists(&lb.Pools, poolName) {
-				continue
-			}
-
-			pool := terraform.Pool{
-				Name:     poolName,
-				Protocol: "TCP",
-				Method:   "ROUND_ROBIN",
-			}
-
-			if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
-				return fmt.Errorf("failed to convert a node list to a member list: %v", err)
-			}
-
-			lb.Pools = append(lb.Pools, pool)
 		}
 	}
 
-	// TODO: parametrize the configmap name and watch for its modification
-	ipAddress, err := c.terraform.EnsureLoadBalancer(lb, c.kubeClient.CoreV1(), ingNamespace, "terraform-template")
+	// TODO: watch for the template modification
+	terraformTemplate := getStringFromIngressAnnotation(ing, IngressAnnotationTemplate, "")
+	ipAddress, err := c.terraform.EnsureLoadBalancer(lb, c.kubeClient.CoreV1(), ingNamespace, terraformTemplate)
 	if err != nil {
 		return err
 	}

@@ -111,7 +111,7 @@ func saveTerraformState(client v1core.SecretInterface, lbName string) (bool, err
 	secretName := fmt.Sprintf("lb-tf-state-%s", lbName)
 	dir := path.Join("/tmp", lbName)
 
-	err := os.MkdirAll(dir, os.ModeDir)
+	err := os.MkdirAll(dir, 0700)
 	if err != nil {
 		return false, fmt.Errorf("failed to create the %q directory: %v", dir, err)
 	}
@@ -125,7 +125,7 @@ func saveTerraformState(client v1core.SecretInterface, lbName string) (bool, err
 		return true, fmt.Errorf("failed to get the terraform state from the %q secret: %v", secretName, err)
 	} else {
 		tfStateFileName := path.Join(dir, tfStateName)
-		err = ioutil.WriteFile(tfStateFileName, []byte(state), 0644)
+		err = ioutil.WriteFile(tfStateFileName, []byte(state), 0600)
 		if err != nil {
 			return false, fmt.Errorf("failed to save the terraform state to the %q: %v", tfStateFileName, err)
 		}
@@ -260,8 +260,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 	if templateCM != "" {
 		temp, err = getTerraformTemplate(client.ConfigMaps(namespace), templateCM)
 		if err != nil {
-			log.Printf("falling back to the default template: %v", err)
-			temp = defaultTemplate
+			return "", err
 		}
 	} else {
 		temp = defaultTemplate
@@ -278,13 +277,16 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 	}
 
 	tfFile := path.Join(dir, "ingress.tf")
-	err = ioutil.WriteFile(tfFile, output.Bytes(), 0644)
+	err = ioutil.WriteFile(tfFile, output.Bytes(), 0600)
 	if err != nil {
 		return "", fmt.Errorf("failed to save the terraform script to %q: %v", tfFile, err)
 	}
 
 	init := exec.Command("terraform", "init")
 	init.Dir = dir
+	init.Stdout = os.Stdout
+	init.Stderr = os.Stderr
+	init.Env = authOptsToEnv(lb.AuthOpts)
 	err = init.Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to init the terraform: %v", err)
