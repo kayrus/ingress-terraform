@@ -6,7 +6,7 @@ A Kubernetes ingress controller, which allows to manage LBaaS resources using th
 
 The project is still in early alpha. There can be significan code and behavior changes.
 
-Since the LBaaS resources is not the part for the Kubernetes cluster and regular services cannot be accessed. Therefore if you want to expose the service for the loadbalancer, you have to expose it as a [node port](https://kubernetes.io/docs/concepts/services-networking/service/#nodeport).
+Since the LBaaS resources is not the part of the Kubernetes cluster, regular services cannot be accessed. Therefore if you want to expose the service for the loadbalancer, you have to expose it as a [node port](https://kubernetes.io/docs/concepts/services-networking/service/#nodeport).
 
 Config [examples](/examples).
 
