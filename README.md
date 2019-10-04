@@ -24,6 +24,16 @@ Loadbalancers can be created within the Kubernetes Cloud Providers, but their co
 * TCP listeners
 * Templated terraform script
 
+## Comparison with a regular ingress controller
+
+On the left side is a regular ingress controller, which resides inside the Kubernetes cluster.
+
+On the right side is a Terraform ingress controller. It doesn't receive the ingress traffic, but only manages the loadbalancer. If Terraform ingress controller is down, the loadbalancer will still work.
+
+Each Kubernetes ingress resource represents a loadbalancer.
+
+![ingress-controllers-comparison](ingress-controllers-comparison.png)
+
 ## TODO
 
 * Handle signals, e.g. wait for terraform to finish, when ingress controller received the exit signal
