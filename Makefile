@@ -8,7 +8,6 @@ export GOPATH:=$(PWD):$(PWD)/gopath
 export CGO_ENABLED:=0
 
 build: gopath/src/$(PKG) fmt
-	test -d vendor || GOPATH= GO111MODULE=auto go mod vendor
 	cd gopath/src/$(PKG) && GOOS=linux go build -o bin/$(APP_NAME) ./cmd
 
 docker:
@@ -17,6 +16,10 @@ docker:
 fmt:
 	gofmt -s -w ./pkg
 
+vet: gopath/src/$(PKG) fmt
+	cd gopath/src/$(PKG) && go vet ./...
+
 gopath/src/$(PKG):
+	test -d vendor || GOPATH= GO111MODULE=auto go mod vendor
 	mkdir -p gopath/src/$(shell dirname $(PKG))
 	ln -sf ../../../.. gopath/src/$(PKG)

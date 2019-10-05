@@ -159,7 +159,7 @@ func readIP(lbName string) (string, error) {
 	output := State{}
 	err = json.Unmarshal(state, &output)
 	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal the loadbalancer IP", err)
+		return "", fmt.Errorf("failed to unmarshal the loadbalancer IP: %v", err)
 	}
 
 	return output.Output.LbIP.Value, nil
