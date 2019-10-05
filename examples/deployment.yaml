@@ -1,4 +1,4 @@
-kind: StatefulSet
+kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: terraform-ingress-controller
@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       k8s-app: terraform-ingress-controller
-  serviceName: terraform-ingress-controller
   template:
     metadata:
       labels:
@@ -32,17 +31,9 @@ spec:
             - /bin/terraform-ingress-controller
             - --config=/etc/config/terraform-ingress-controller-config.yaml
           volumeMounts:
-            - mountPath: /etc/kubernetes
-              name: kubernetes-config
-              readOnly: true
             - name: ingress-config
               mountPath: /etc/config
-      hostNetwork: true
       volumes:
-        - name: kubernetes-config
-          hostPath:
-            path: /etc/kubernetes
-            type: Directory
         - name: ingress-config
           configMap:
             name: terraform-ingress-controller-config
