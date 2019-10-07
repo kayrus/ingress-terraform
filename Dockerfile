@@ -1,14 +1,21 @@
-FROM alpine:3.7
+FROM golang:1.13-alpine as builder
+
+RUN apk add --update git make zip bash gcc musl-dev
+
+WORKDIR /go/src/github.com/terraform-providers/terraform-provider-openstack
+RUN git clone https://github.com/terraform-providers/terraform-provider-openstack.git .
+RUN make
+
+FROM alpine:latest
 
 ENV TERRAFORM_VERSION 0.12.9
-ENV TERRAFORM_PROVIDER_OPENSTACK_VERSION 1.23.0
 
 ENV OS_DELAYED_AUTH true
 
 RUN apk add --no-cache ca-certificates
 ADD https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip /bin/
-ADD https://releases.hashicorp.com/terraform-provider-openstack/${TERRAFORM_PROVIDER_OPENSTACK_VERSION}/terraform-provider-openstack_${TERRAFORM_PROVIDER_OPENSTACK_VERSION}_linux_amd64.zip /root/.terraform.d/plugins/
-RUN for k in /bin/ /root/.terraform.d/plugins/; do for i in $k*.zip; do unzip -qd $k $i; done && rm $k*.zip && chmod +x $k*; done
+COPY --from=builder /go/bin/terraform-provider-openstack /root/.terraform.d/plugins/terraform-provider-openstack_v1.24.0_x4
+RUN for k in /bin/; do for i in $k*.zip; do unzip -qd $k $i; done && rm $k*.zip && chmod +x $k*; done
 ADD bin/terraform-ingress-controller /bin/
 
 CMD ["/bin/terraform-ingress-controller"]
