@@ -2,7 +2,6 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: terraform-ingress-controller
-  namespace: kube-system
   labels:
     k8s-app: terraform-ingress-controller
 spec:

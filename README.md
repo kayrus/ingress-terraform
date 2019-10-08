@@ -85,7 +85,7 @@ data:
   config: |
     cluster-name: terraform-ingress-cluster
     openstack:
-      auth-url: %auth_url%
+      auth-url: %os_auth_url%
       username: %os_username%
       password: %os_password%
       tenant-id: %os_tenant_id%
@@ -99,6 +99,31 @@ data:
       monitor-delay: "5"
       monitor-timeout: "3"
       monitor-max-retries: 3
+```
+
+## Getting started
+
+* Clone the repo
+* Change the current dir to `examples`
+* Modify the config file
+
+```sh
+$ kubectl -n kube-system apply -f config.yaml
+$ kubectl -n kube-system apply -f serviceaccount.yaml
+$ kubectl -n kube-system apply -f deployment.yaml
+```
+
+Expose the HTTP service as a node port and deploy the ingress resource:
+
+```sh
+$ kubectl expose deployment my-service --type=NodePort --target-port=8080
+$ kubectl apply -f test-terraform-ingress.yaml
+```
+
+Read ingress controller logs:
+
+```sh
+$ kubectl -n kube-system logs -f -l k8s-app=terraform-ingress-controller
 ```
 
 ## TODO
