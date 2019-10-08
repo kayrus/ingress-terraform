@@ -92,6 +92,9 @@ const (
 
 	// The IngressAnnotationUseOctavia specifies whether terraform provider should use Octavia API instead of Neutron LBaaS v2
 	IngressAnnotationUseOctavia = "terraform.ingress.kubernetes.io/use-octavia"
+
+	// The IngressAnnotationLbMethod specifies the loadbalancer method
+	IngressAnnotationLbMethod = "terraform.ingress.kubernetes.io/lb-method"
 )
 
 // EventType type of event associated with an informer
@@ -673,6 +676,8 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		skipHTTP = v
 	}
 
+	lbMethod := validateLbMethod(getStringFromIngressAnnotation(ing, IngressAnnotationLbMethod, "ROUND_ROBIN"))
+
 	lb := terraform.Terraform{
 		AuthOpts:                &c.config.OpenStack,
 		SkipHTTP:                skipHTTP,
@@ -743,7 +748,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 			Primary:  true,
 			Name:     poolName,
 			Protocol: "HTTP",
-			Method:   "ROUND_ROBIN",
+			Method:   lbMethod,
 		}
 
 		if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -782,7 +787,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				pool := terraform.Pool{
 					Name:     poolName,
 					Protocol: "HTTP",
-					Method:   "ROUND_ROBIN",
+					Method:   lbMethod,
 				}
 
 				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -843,7 +848,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				pool := terraform.Pool{
 					Name:     poolName,
 					Protocol: "TCP",
-					Method:   "ROUND_ROBIN",
+					Method:   lbMethod,
 				}
 
 				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -901,7 +906,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				pool := terraform.Pool{
 					Name:     poolName,
 					Protocol: "UDP",
-					Method:   "ROUND_ROBIN",
+					Method:   lbMethod,
 				}
 
 				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -1022,4 +1027,18 @@ func getStringFromIngressAnnotation(ingress *nwv1beta1.Ingress, annotationKey st
 	}
 
 	return defaultValue
+}
+
+// validateLbMethod validates the loadbalancer method. If it is not valid, then default "ROUND_ROBIN" is used
+func validateLbMethod(lbMethod string) string {
+	switch lbMethod {
+	case "ROUND_ROBIN":
+		return "ROUND_ROBIN"
+	case "LEAST_CONNECTIONS":
+		return "LEAST_CONNECTIONS"
+	case "SOURCE_IP":
+		return "SOURCE_IP"
+	}
+
+	return "ROUND_ROBIN"
 }
