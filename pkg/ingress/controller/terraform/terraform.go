@@ -226,7 +226,7 @@ func (*Terraform) DeleteLoadbalancer(lb Terraform, client v1core.CoreV1Interface
 	cmd := exec.Command("terraform", "destroy", "-auto-approve")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = authOptsToEnv(lb.AuthOpts)
+	cmd.Env = append(os.Environ(), authOptsToEnv(lb.AuthOpts)...)
 	cmd.Dir = dir
 	err = cmd.Run()
 	if err != nil {
@@ -286,7 +286,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 	init.Dir = dir
 	init.Stdout = os.Stdout
 	init.Stderr = os.Stderr
-	init.Env = authOptsToEnv(lb.AuthOpts)
+	init.Env = append(os.Environ(), authOptsToEnv(lb.AuthOpts)...)
 	err = init.Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to init the terraform: %v", err)
@@ -296,7 +296,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = authOptsToEnv(lb.AuthOpts)
+	cmd.Env = append(os.Environ(), authOptsToEnv(lb.AuthOpts)...)
 	for _, tls := range lb.TLS {
 		// add certificates
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TF_VAR_%s_certificate=%s", tls.Name, tls.Certificate))
