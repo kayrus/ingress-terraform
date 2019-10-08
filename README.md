@@ -22,6 +22,7 @@ Loadbalancers can be created within the Kubernetes Cloud Providers, but their co
 
 * TLS certificates (`TERMINATED_HTTPS`)
 * TCP listeners
+* UDP listeners (experimental, available only for Octavia API)
 * Templated terraform script
 
 ## Comparison with a regular ingress controller
@@ -100,6 +101,19 @@ data:
       monitor-timeout: "3"
       monitor-max-retries: 3
 ```
+
+### Supported annotations
+
+When you specify a configmap name, make sure it exists within the same namespace as an ingress resource.
+
+|Name|Type|Default|Description|
+|-|-|-|-|
+|terraform.ingress.kubernetes.io/internal|true\|false|false|whether to assign a floating IP to the loadbalancer or not|
+|terraform.ingress.kubernetes.io/tcp-configmap|string|N/A|a config map name with a TCP service ports map|
+|terraform.ingress.kubernetes.io/udp-configmap|string|N/A|a config map name with a UDP service ports map|
+|terraform.ingress.kubernetes.io/template|string|N/A|a config map name with a custom terraform script template|
+|terraform.ingress.kubernetes.io/skip-http-listener|true\|false|false|whether to skip the HTTP (80 TCP port) listener creation|
+|kubernetes.io/ingress.class|string|N/A|must have the `terraform` value to be processed by the Terraform Ingress Controller|
 
 ## Getting started
 
