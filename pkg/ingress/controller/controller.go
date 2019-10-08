@@ -89,6 +89,9 @@ const (
 
 	// The IngressAnnotationTemplate specifies the go template to used by the terraform to create a loadbalancer
 	IngressAnnotationTemplate = "terraform.ingress.kubernetes.io/template"
+
+	// The IngressAnnotationUseOctavia specifies whether terraform provider should use Octavia API instead of Neutron LBaaS v2
+	IngressAnnotationUseOctavia = "terraform.ingress.kubernetes.io/use-octavia"
 )
 
 // EventType type of event associated with an informer
@@ -643,6 +646,11 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		}
 	}
 
+	useOctavia, err := strconv.ParseBool(getStringFromIngressAnnotation(ing, IngressAnnotationUseOctavia, "false"))
+	if err != nil {
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationUseOctavia, err)
+	}
+
 	internalSetting := getStringFromIngressAnnotation(ing, IngressAnnotationInternal, "true")
 	isInternal, err := strconv.ParseBool(internalSetting)
 	if err != nil {
@@ -677,6 +685,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		FloatingIPSubnetID:      c.config.Terraform.FloatingIPSubnetID,
 		IsInternal:              isInternal,
 		ManageSecurityGroups:    c.config.Terraform.ManageSecurityGroups,
+		UseOctavia:              useOctavia,
 		Monitor: terraform.Monitor{
 			CreateMonitor: c.config.Terraform.CreateMonitor,
 			Delay:         c.config.Terraform.MonitorDelay,

@@ -37,6 +37,7 @@ type Terraform struct {
 	LoadBalancerProvider    string
 	SubnetID                string
 	IsInternal              bool
+	UseOctavia              bool
 	FloatingIPNetworkID     string
 	FloatingIPSubnetID      string
 	ManageSecurityGroups    bool
@@ -88,25 +89,31 @@ type TLS struct {
 	Key         string
 }
 
-func authOptsToEnv(opts *openstack_provider.AuthOpts) []string {
-	return []string{
-		fmt.Sprintf("OS_AUTH_URL=%s", opts.AuthURL),
-		fmt.Sprintf("OS_USER_ID=%s", opts.UserID),
-		fmt.Sprintf("OS_USERNAME=%s", opts.Username),
-		fmt.Sprintf("OS_PASSWORD=%s", opts.Password),
-		fmt.Sprintf("OS_PROJECT_ID=%s", opts.TenantID),
-		fmt.Sprintf("OS_PROJECT_NAME=%s", opts.TenantName),
-		fmt.Sprintf("OS_DOMAIN_ID=%s", opts.DomainID),
-		fmt.Sprintf("OS_DOMAIN_NAME=%s", opts.DomainName),
-		fmt.Sprintf("OS_PROJECT_DOMAIN_ID=%s", opts.TenantDomainID),
-		fmt.Sprintf("OS_PROJECT_DOMAIN_NAME=%s", opts.TenantDomainName),
-		fmt.Sprintf("OS_USER_DOMAIN_ID=%s", opts.UserDomainID),
-		fmt.Sprintf("OS_USER_DOMAIN_NAME=%s", opts.UserDomainName),
-		fmt.Sprintf("OS_REGION_NAME=%s", opts.Region),
-		fmt.Sprintf("OS_APPLICATION_CREDENTIAL_ID=%s", opts.ApplicationCredentialID),
-		fmt.Sprintf("OS_APPLICATION_CREDENTIAL_NAME=%s", opts.ApplicationCredentialName),
-		fmt.Sprintf("OS_APPLICATION_CREDENTIAL_SECRET=%s", opts.ApplicationCredentialSecret),
+func optsToEnv(opts *Terraform) []string {
+	env := []string{
+		fmt.Sprintf("OS_AUTH_URL=%s", opts.AuthOpts.AuthURL),
+		fmt.Sprintf("OS_USER_ID=%s", opts.AuthOpts.UserID),
+		fmt.Sprintf("OS_USERNAME=%s", opts.AuthOpts.Username),
+		fmt.Sprintf("OS_PASSWORD=%s", opts.AuthOpts.Password),
+		fmt.Sprintf("OS_PROJECT_ID=%s", opts.AuthOpts.TenantID),
+		fmt.Sprintf("OS_PROJECT_NAME=%s", opts.AuthOpts.TenantName),
+		fmt.Sprintf("OS_DOMAIN_ID=%s", opts.AuthOpts.DomainID),
+		fmt.Sprintf("OS_DOMAIN_NAME=%s", opts.AuthOpts.DomainName),
+		fmt.Sprintf("OS_PROJECT_DOMAIN_ID=%s", opts.AuthOpts.TenantDomainID),
+		fmt.Sprintf("OS_PROJECT_DOMAIN_NAME=%s", opts.AuthOpts.TenantDomainName),
+		fmt.Sprintf("OS_USER_DOMAIN_ID=%s", opts.AuthOpts.UserDomainID),
+		fmt.Sprintf("OS_USER_DOMAIN_NAME=%s", opts.AuthOpts.UserDomainName),
+		fmt.Sprintf("OS_REGION_NAME=%s", opts.AuthOpts.Region),
+		fmt.Sprintf("OS_APPLICATION_CREDENTIAL_ID=%s", opts.AuthOpts.ApplicationCredentialID),
+		fmt.Sprintf("OS_APPLICATION_CREDENTIAL_NAME=%s", opts.AuthOpts.ApplicationCredentialName),
+		fmt.Sprintf("OS_APPLICATION_CREDENTIAL_SECRET=%s", opts.AuthOpts.ApplicationCredentialSecret),
 	}
+
+	if opts.UseOctavia {
+		env = append(env, fmt.Sprintf("OS_USE_OCTAVIA=%t", opts.UseOctavia))
+	}
+
+	return env
 }
 
 func saveTerraformState(client v1core.SecretInterface, lbName string) (bool, error) {
@@ -239,7 +246,7 @@ func (*Terraform) DeleteLoadbalancer(lb Terraform, client v1core.CoreV1Interface
 	cmd := exec.Command("terraform", "destroy", "-auto-approve")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), authOptsToEnv(lb.AuthOpts)...)
+	cmd.Env = append(os.Environ(), optsToEnv(&lb)...)
 	cmd.Dir = dir
 	err = cmd.Run()
 	if err != nil {
@@ -299,7 +306,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 	init.Dir = dir
 	init.Stdout = os.Stdout
 	init.Stderr = os.Stderr
-	init.Env = append(os.Environ(), authOptsToEnv(lb.AuthOpts)...)
+	init.Env = append(os.Environ(), optsToEnv(&lb)...)
 	err = init.Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to init the terraform: %v", err)
@@ -309,7 +316,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Env = append(os.Environ(), authOptsToEnv(lb.AuthOpts)...)
+	cmd.Env = append(os.Environ(), optsToEnv(&lb)...)
 	for _, tls := range lb.TLS {
 		// add certificates
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TF_VAR_%s_certificate=%s", tls.Name, tls.Certificate))

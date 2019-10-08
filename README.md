@@ -110,9 +110,10 @@ When you specify a configmap name, make sure it exists within the same namespace
 |-|-|-|-|
 |terraform.ingress.kubernetes.io/internal|true\|false|false|whether to assign a floating IP to the loadbalancer or not|
 |terraform.ingress.kubernetes.io/tcp-configmap|string|N/A|a config map name with a TCP service ports map|
-|terraform.ingress.kubernetes.io/udp-configmap|string|N/A|a config map name with a UDP service ports map|
+|terraform.ingress.kubernetes.io/udp-configmap|string|N/A|a config map name with a UDP service ports map (supported only in Octavia API)|
 |terraform.ingress.kubernetes.io/template|string|N/A|a config map name with a custom terraform script template|
 |terraform.ingress.kubernetes.io/skip-http-listener|true\|false|false|whether to skip the HTTP (80 TCP port) listener creation|
+|terraform.ingress.kubernetes.io/use-octavia|true\|false|false|whether Terraform provider should use Octavia API instead of Neutron LBaaS v2|
 |kubernetes.io/ingress.class|string|N/A|must have the `terraform` value to be processed by the Terraform Ingress Controller|
 
 ## Getting started
