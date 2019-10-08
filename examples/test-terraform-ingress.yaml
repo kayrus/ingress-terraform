@@ -5,6 +5,7 @@ metadata:
     kubernetes.io/ingress.class: terraform
     terraform.ingress.kubernetes.io/internal: "false"
     # terraform.ingress.kubernetes.io/tcp-configmap: "ingress-tcp-services" # cm name within the ingress namespace
+    # terraform.ingress.kubernetes.io/udp-configmap: "ingress-udp-services" # cm name within the ingress namespace
     # terraform.ingress.kubernetes.io/template: "custom-template" cm name within the ingress namespace
   name: test-terraform-ingress
 spec:

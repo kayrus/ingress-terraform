@@ -37,7 +37,7 @@ type kubeConfig struct {
 	KubeConfig string `mapstructure:"kubeconfig"`
 }
 
-// Octavia service related configuration
+// LBaaS related configuration
 type terraformConfig struct {
 	// (Optional) Provider name for the load balancer. Default: terraform
 	// For more information: https://docs.openstack.org/terraform/latest/admin/providers.html

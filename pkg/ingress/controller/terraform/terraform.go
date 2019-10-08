@@ -41,7 +41,8 @@ type Terraform struct {
 	ManageSecurityGroups    bool
 	Pools                   []Pool
 	Rules                   []Rule
-	TCP                     []TCP
+	TCP                     []Port
+	UDP                     []Port
 	Monitor                 Monitor
 	CreateTLS               bool
 	TLS                     []TLS
@@ -53,7 +54,7 @@ type Rule struct {
 	Host     string
 }
 
-type TCP struct {
+type Port struct {
 	PoolName string
 	Port     int
 }

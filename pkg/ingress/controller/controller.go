@@ -81,6 +81,9 @@ const (
 	// The IngressAnnotationTCPConfigMap specifies the TCP configmap name to be used by the terraform to create a loadbalancer
 	IngressAnnotationTCPConfigMap = "terraform.ingress.kubernetes.io/tcp-configmap"
 
+	// The IngressAnnotationUDPConfigMap specifies the UDP configmap name to be used by the terraform to create a loadbalancer
+	IngressAnnotationUDPConfigMap = "terraform.ingress.kubernetes.io/udp-configmap"
+
 	// The IngressAnnotationTemplate specifies the go template to used by the terraform to create a loadbalancer
 	IngressAnnotationTemplate = "terraform.ingress.kubernetes.io/template"
 )
@@ -497,8 +500,8 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 	var nodePort int
 	ports := svc.Spec.Ports
 	for _, p := range ports {
-		// Only TCP ports are supported
-		if p.Protocol == apiv1.ProtocolTCP {
+		// Only TCP or UDP ports are supported
+		if p.Protocol == apiv1.ProtocolTCP || p.Protocol == apiv1.ProtocolUDP {
 			if port.Type == intstr.Int && int(p.Port) == port.IntValue() {
 				nodePort = int(p.NodePort)
 				break
@@ -567,10 +570,20 @@ func poolExists(pools *[]terraform.Pool, name string) bool {
 	return false
 }
 
-func tcpPortExists(tcpPorts *[]terraform.TCP, port int) bool {
+func tcpPortExists(tcpPorts *[]terraform.Port, port int) bool {
 	for _, p := range *tcpPorts {
 		if p.Port == port {
-			log.Printf("%q port already exists", port)
+			log.Printf("%q TCP port already exists", port)
+			return true
+		}
+	}
+	return false
+}
+
+func udpPortExists(udpPorts *[]terraform.Port, port int) bool {
+	for _, p := range *udpPorts {
+		if p.Port == port {
+			log.Printf("%q UDP port already exists", port)
 			return true
 		}
 	}
@@ -769,7 +782,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 					return err
 				}
 
-				lb.TCP = append(lb.TCP, terraform.TCP{
+				lb.TCP = append(lb.TCP, terraform.Port{
 					PoolName: poolName,
 					Port:     tcpPort,
 				})
@@ -781,6 +794,64 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				pool := terraform.Pool{
 					Name:     poolName,
 					Protocol: "TCP",
+					Method:   "ROUND_ROBIN",
+				}
+
+				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
+					return fmt.Errorf("failed to convert a node list to a member list: %v", err)
+				}
+
+				lb.Pools = append(lb.Pools, pool)
+			}
+		}
+	}
+
+	// Direct UDP
+	// TODO: watch for configmap modifications
+	if v := getStringFromIngressAnnotation(ing, IngressAnnotationUDPConfigMap, ""); v != "" {
+		configMapName := fmt.Sprintf("%s/%s", ingNamespace, v)
+		if v, err := c.getConfigMap(configMapName); err != nil {
+			return fmt.Errorf("failed to get the %q UDP configmap: %v", configMapName, err)
+		} else {
+			for port, svc := range v.Data {
+				udpPort, err := strconv.Atoi(port)
+				if err != nil {
+					return fmt.Errorf("failed to convert the %q to a number: %v", port, err)
+				}
+
+				// check udp port
+				if udpPort < 1 || udpPort > 65535 {
+					return fmt.Errorf("the %d UDP port is out of range", udpPort)
+				}
+				if udpPortExists(&lb.UDP, udpPort) {
+					return fmt.Errorf("the %d UDP port is already defined", udpPort)
+				}
+
+				s := strings.SplitN(svc, ":", 2)
+				if len(s) != 2 {
+					return fmt.Errorf("failed to parse the %q to a service name and a port", svc)
+				}
+
+				serviceName := fmt.Sprintf("%s/%s", ingNamespace, s[0])
+				poolName := fmt.Sprintf("udp_pool_%s_%s_%s", ingNamespace, s[0], s[1])
+
+				nodePort, err := c.getServiceNodePort(serviceName, intstr.Parse(s[1]))
+				if err != nil {
+					return err
+				}
+
+				lb.UDP = append(lb.UDP, terraform.Port{
+					PoolName: poolName,
+					Port:     udpPort,
+				})
+
+				if poolExists(&lb.Pools, poolName) {
+					continue
+				}
+
+				pool := terraform.Pool{
+					Name:     poolName,
+					Protocol: "UDP",
 					Method:   "ROUND_ROBIN",
 				}
 

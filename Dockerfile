@@ -3,7 +3,7 @@ FROM golang:1.13-alpine as builder
 RUN apk add --update git make zip bash gcc musl-dev
 
 WORKDIR /go/src/github.com/terraform-providers/terraform-provider-openstack
-RUN git clone https://github.com/terraform-providers/terraform-provider-openstack.git .
+RUN git clone -b lbaas-udp https://github.com/kayrus/terraform-provider-openstack.git .
 RUN make
 WORKDIR /go/src/github.com/kayrus/ingress-terraform
 RUN git clone https://github.com/kayrus/ingress-terraform.git .

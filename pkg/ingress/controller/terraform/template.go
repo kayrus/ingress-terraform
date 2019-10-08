@@ -137,6 +137,20 @@ resource "openstack_lb_listener_v2" "{{ $port.PoolName }}_{{ $port.Port }}" {
 }
 {{- end }}
 
+{{- range $port := $.UDP }}
+resource "openstack_lb_listener_v2" "{{ $port.PoolName }}_{{ $port.Port }}" {
+  name            = "{{ $port.PoolName }}"
+  protocol        = "UDP"
+  protocol_port   = {{ $port.Port }}
+  loadbalancer_id = "${openstack_lb_loadbalancer_v2.{{ $.LoadBalancerUID }}.id}"
+{{- range $p := $.Pools }}
+{{- if eq $p.Name $port.PoolName }}
+  default_pool_id = "${openstack_lb_pool_v2.{{ $port.PoolName }}.id}"
+{{- end }}
+{{- end }}
+}
+{{- end }}
+
 {{- range $p := $.Pools }}
 resource "openstack_lb_pool_v2" "{{ $p.Name }}" {
   name            = "{{ $p.Name }}"
@@ -167,7 +181,11 @@ resource "openstack_lb_member_v2" "{{ $p.Name }}_{{ $m.Name }}" {
 resource "openstack_networking_secgroup_rule_v2" "sg_rule_pool_{{ $p.Name }}" {
   direction         = "ingress"
   ethertype         = "IPv4"
+{{- if eq $p.Protocol "UDP" }}
+  protocol          = "udp"
+{{- else }}
   protocol          = "tcp"
+{{- end }}
   port_range_min    = "{{ $m.Port }}"
   port_range_max    = "{{ $m.Port }}"
   remote_ip_prefix  = "${data.openstack_networking_subnet_v2.lb_subnet.cidr}"
@@ -185,7 +203,11 @@ data "openstack_networking_port_ids_v2" "server_ports_{{ $p.Name }}_{{ $m.Name }
 resource "openstack_lb_monitor_v2" "monitor_{{ $p.Name }}" {
   name           = "monitor_{{ $p.Name }}"
   pool_id        = "${openstack_lb_pool_v2.{{ $p.Name }}.id}"
+{{- if eq $p.Protocol "UDP" }}
+  type           = "UDP-CONNECT"
+{{- else }}
   type           = "TCP"
+{{- end }}
   delay          = "{{ $.Monitor.Delay }}"
   timeout        = "{{ $.Monitor.Timeout }}"
   max_retries    = "{{ $.Monitor.MaxRetries }}"
