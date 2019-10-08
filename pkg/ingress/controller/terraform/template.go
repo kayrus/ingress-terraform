@@ -33,6 +33,7 @@ data "openstack_networking_subnet_v2" "lb_subnet" {
 }
 {{- end }}
 
+{{- if ne $.SkipHTTP true }}
 resource "openstack_lb_listener_v2" "http" {
   name            = "http"
   protocol        = "HTTP"
@@ -49,6 +50,7 @@ resource "openstack_lb_listener_v2" "http" {
   default_pool_id = null # BUG: https://github.com/terraform-providers/terraform-provider-openstack/issues/886
 {{- end }}
 }
+{{- end }}
 
 {{- if $.CreateTLS }}
 {{- range $tls := $.TLS }}
@@ -217,6 +219,7 @@ resource "openstack_lb_monitor_v2" "monitor_{{ $p.Name }}" {
 
 {{- range $i, $r := $.Rules }}
 {{- if or (ne $r.Path "") (ne $r.Host "") }}
+{{- if ne $.SkipHTTP true }}
 resource "openstack_lb_l7policy_v2" "http_{{ $r.PoolName }}_{{ $i }}" {
   name             = "http_{{ $r.PoolName }}_{{ $i }}"
   description      = "Created by kubernetes ingress"
@@ -225,6 +228,7 @@ resource "openstack_lb_l7policy_v2" "http_{{ $r.PoolName }}_{{ $i }}" {
   listener_id      = "${openstack_lb_listener_v2.http.id}${ openstack_lb_pool_v2.{{ $r.PoolName }}.id == "" ? "" : "" }"
   redirect_pool_id = "${openstack_lb_pool_v2.{{ $r.PoolName }}.id}"
 }
+{{- end }}
 
 {{- if $.CreateTLS }}
 resource "openstack_lb_l7policy_v2" "https_{{ $r.PoolName }}_{{ $i }}" {
@@ -238,12 +242,14 @@ resource "openstack_lb_l7policy_v2" "https_{{ $r.PoolName }}_{{ $i }}" {
 {{- end }}
 
 {{- if ne $r.Path "" }}
+{{- if ne $.SkipHTTP true }}
 resource "openstack_lb_l7rule_v2" "http_rule_path_{{ $r.PoolName }}_{{ $i }}" {
   l7policy_id  = "${openstack_lb_l7policy_v2.http_{{ $r.PoolName }}_{{ $i }}.id}"
   type         = "PATH"
   compare_type = "STARTS_WITH"
   value        = "{{ $r.Path }}"
 }
+{{- end }}
 
 {{- if $.CreateTLS }}
 resource "openstack_lb_l7rule_v2" "https_rule_path_{{ $r.PoolName }}_{{ $i }}" {
@@ -256,12 +262,14 @@ resource "openstack_lb_l7rule_v2" "https_rule_path_{{ $r.PoolName }}_{{ $i }}" {
 {{- end }}
 
 {{- if ne $r.Host "" }}
+{{- if ne $.SkipHTTP true }}
 resource "openstack_lb_l7rule_v2" "http_rule_host_{{ $r.PoolName }}_{{ $i }}" {
   l7policy_id  = "${openstack_lb_l7policy_v2.http_{{ $r.PoolName }}_{{ $i }}.id}"
   type         = "HOST_NAME"
   compare_type = "EQUAL_TO"
   value        = "{{ $r.Host }}"
 }
+{{- end }}
 
 {{- if $.CreateTLS }}
 resource "openstack_lb_l7rule_v2" "https_rule_host_{{ $r.PoolName }}_{{ $i }}" {
@@ -291,6 +299,7 @@ openstack_networking_secgroup_v2.sg_pool_{{ $p.Name }}.id,
 )}"
 }
 
+# TODO: port IDs sorting
 resource "openstack_networking_port_secgroup_associate_v2" "servers_port_sgs_{{ $.LoadBalancerUID }}" {
   count = "${length(local.port_ids)}"
 

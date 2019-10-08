@@ -84,6 +84,9 @@ const (
 	// The IngressAnnotationUDPConfigMap specifies the UDP configmap name to be used by the terraform to create a loadbalancer
 	IngressAnnotationUDPConfigMap = "terraform.ingress.kubernetes.io/udp-configmap"
 
+	// The IngressAnnotationSkipHTTP specifies to skip the HTTP listener creation
+	IngressAnnotationSkipHTTP = "terraform.ingress.kubernetes.io/skip-http-listener"
+
 	// The IngressAnnotationTemplate specifies the go template to used by the terraform to create a loadbalancer
 	IngressAnnotationTemplate = "terraform.ingress.kubernetes.io/template"
 )
@@ -491,7 +494,7 @@ func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
 	return c.terraform.DeleteLoadbalancer(lb, c.kubeClient.CoreV1(), ing.ObjectMeta.Namespace)
 }
 
-func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (int, error) {
+func (c *Controller) getTCPServiceNodePort(name string, port intstr.IntOrString) (int, error) {
 	svc, err := c.getService(name)
 	if err != nil {
 		return 0, err
@@ -500,8 +503,7 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 	var nodePort int
 	ports := svc.Spec.Ports
 	for _, p := range ports {
-		// Only TCP or UDP ports are supported
-		if p.Protocol == apiv1.ProtocolTCP || p.Protocol == apiv1.ProtocolUDP {
+		if p.Protocol == apiv1.ProtocolTCP {
 			if port.Type == intstr.Int && int(p.Port) == port.IntValue() {
 				nodePort = int(p.NodePort)
 				break
@@ -514,7 +516,35 @@ func (c *Controller) getServiceNodePort(name string, port intstr.IntOrString) (i
 	}
 
 	if nodePort == 0 {
-		return 0, fmt.Errorf("failed to find service node port")
+		return 0, fmt.Errorf("failed to find TCP service node port")
+	}
+
+	return nodePort, nil
+}
+
+func (c *Controller) getUDPServiceNodePort(name string, port intstr.IntOrString) (int, error) {
+	svc, err := c.getService(name)
+	if err != nil {
+		return 0, err
+	}
+
+	var nodePort int
+	ports := svc.Spec.Ports
+	for _, p := range ports {
+		if p.Protocol == apiv1.ProtocolUDP {
+			if port.Type == intstr.Int && int(p.Port) == port.IntValue() {
+				nodePort = int(p.NodePort)
+				break
+			}
+			if port.Type == intstr.String && p.Name == port.StrVal {
+				nodePort = int(p.NodePort)
+				break
+			}
+		}
+	}
+
+	if nodePort == 0 {
+		return 0, fmt.Errorf("failed to find UDP service node port")
 	}
 
 	return nodePort, nil
@@ -628,8 +658,16 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		}
 	}
 
+	var skipHTTP bool
+	if v, err := strconv.ParseBool(getStringFromIngressAnnotation(ing, IngressAnnotationSkipHTTP, "false")); err != nil {
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationSkipHTTP, err)
+	} else {
+		skipHTTP = v
+	}
+
 	lb := terraform.Terraform{
 		AuthOpts:                &c.config.OpenStack,
+		SkipHTTP:                skipHTTP,
 		LoadBalancerUID:         lbUID,
 		LoadBalancerName:        name,
 		LoadBalancerDescription: description,
@@ -683,11 +721,11 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		}
 	}
 
-	if ing.Spec.Backend != nil {
+	if ing.Spec.Backend != nil && (lb.CreateTLS || !skipHTTP) {
 		serviceName := fmt.Sprintf("%s/%s", ingNamespace, ing.Spec.Backend.ServiceName)
 		poolName := fmt.Sprintf("pool_%s_%s_%s", ingNamespace, ing.Spec.Backend.ServiceName, ing.Spec.Backend.ServicePort.String())
 
-		nodePort, err := c.getServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
+		nodePort, err := c.getTCPServiceNodePort(serviceName, ing.Spec.Backend.ServicePort)
 		if err != nil {
 			return err
 		}
@@ -708,40 +746,42 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 
 	// Add l7 load balancing rules. Each host and path combination is mapped to a l7 policy,
 	// which contains two rules(with type 'HOST_NAME' and 'PATH' respectively)
-	for _, rule := range ing.Spec.Rules {
-		host := rule.Host
+	if lb.CreateTLS || !skipHTTP {
+		for _, rule := range ing.Spec.Rules {
+			host := rule.Host
 
-		for _, path := range rule.HTTP.Paths {
-			serviceName := fmt.Sprintf("%s/%s", ingNamespace, path.Backend.ServiceName)
-			poolName := fmt.Sprintf("pool_%s_%s_%s", ingNamespace, path.Backend.ServiceName, path.Backend.ServicePort.String())
+			for _, path := range rule.HTTP.Paths {
+				serviceName := fmt.Sprintf("%s/%s", ingNamespace, path.Backend.ServiceName)
+				poolName := fmt.Sprintf("pool_%s_%s_%s", ingNamespace, path.Backend.ServiceName, path.Backend.ServicePort.String())
 
-			rule := terraform.Rule{
-				PoolName: poolName,
-				Path:     path.Path,
-				Host:     host,
+				rule := terraform.Rule{
+					PoolName: poolName,
+					Path:     path.Path,
+					Host:     host,
+				}
+				lb.Rules = append(lb.Rules, rule)
+
+				if poolExists(&lb.Pools, poolName) {
+					continue
+				}
+
+				nodePort, err := c.getTCPServiceNodePort(serviceName, path.Backend.ServicePort)
+				if err != nil {
+					return err
+				}
+
+				pool := terraform.Pool{
+					Name:     poolName,
+					Protocol: "HTTP",
+					Method:   "ROUND_ROBIN",
+				}
+
+				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
+					return fmt.Errorf("failed to convert a node list to a member list: %v", err)
+				}
+
+				lb.Pools = append(lb.Pools, pool)
 			}
-			lb.Rules = append(lb.Rules, rule)
-
-			if poolExists(&lb.Pools, poolName) {
-				continue
-			}
-
-			nodePort, err := c.getServiceNodePort(serviceName, path.Backend.ServicePort)
-			if err != nil {
-				return err
-			}
-
-			pool := terraform.Pool{
-				Name:     poolName,
-				Protocol: "HTTP",
-				Method:   "ROUND_ROBIN",
-			}
-
-			if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
-				return fmt.Errorf("failed to convert a node list to a member list: %v", err)
-			}
-
-			lb.Pools = append(lb.Pools, pool)
 		}
 	}
 
@@ -777,7 +817,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				serviceName := fmt.Sprintf("%s/%s", ingNamespace, s[0])
 				poolName := fmt.Sprintf("tcp_pool_%s_%s_%s", ingNamespace, s[0], s[1])
 
-				nodePort, err := c.getServiceNodePort(serviceName, intstr.Parse(s[1]))
+				nodePort, err := c.getTCPServiceNodePort(serviceName, intstr.Parse(s[1]))
 				if err != nil {
 					return err
 				}
@@ -835,7 +875,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				serviceName := fmt.Sprintf("%s/%s", ingNamespace, s[0])
 				poolName := fmt.Sprintf("udp_pool_%s_%s_%s", ingNamespace, s[0], s[1])
 
-				nodePort, err := c.getServiceNodePort(serviceName, intstr.Parse(s[1]))
+				nodePort, err := c.getUDPServiceNodePort(serviceName, intstr.Parse(s[1]))
 				if err != nil {
 					return err
 				}

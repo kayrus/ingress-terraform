@@ -30,6 +30,7 @@ type State struct {
 // Terraform is an implementation of cloud provider Interface for Terraform.
 type Terraform struct {
 	AuthOpts                *openstack_provider.AuthOpts
+	SkipHTTP                bool
 	LoadBalancerUID         string
 	LoadBalancerName        string
 	LoadBalancerDescription string
@@ -216,6 +217,17 @@ func (*Terraform) DeleteLoadbalancer(lb Terraform, client v1core.CoreV1Interface
 	}
 
 	dir := path.Join("/tmp", lb.LoadBalancerUID)
+
+	// this is needed in case when new ingress.tf is broken
+	// terraform will rely on the state file only
+	tfFile := path.Join(dir, "ingress.tf")
+	_, err = os.Stat(tfFile)
+	if !os.IsNotExist(err) {
+		err = os.Remove(tfFile)
+		if err != nil {
+			return fmt.Errorf("failed to delete the terraform script from %q: %v", tfFile, err)
+		}
+	}
 
 	init := exec.Command("terraform", "init")
 	init.Dir = dir
