@@ -115,6 +115,7 @@ When you specify a configmap name, make sure it exists within the same namespace
 |terraform.ingress.kubernetes.io/skip-http-listener|true\|false|false|whether to skip the HTTP (80 TCP port) listener creation|
 |terraform.ingress.kubernetes.io/use-octavia|true\|false|false|whether Terraform provider should use Octavia API instead of Neutron LBaaS v2|
 |terraform.ingress.kubernetes.io/lb-method|string|`ROUND_ROBIN`|a load balancer method, can be `ROUND_ROBIN`, `LEAST_CONNECTIONS` or `SOURCE_IP`|
+|terraform.ingress.kubernetes.io/lock-timeout|string|0s|specifies the [`-lock-timeout`](https://www.terraform.io/docs/commands/apply.html#lock-timeout-0s) Terraform CLI argument|
 |kubernetes.io/ingress.class|string|N/A|must have the `terraform` value to be processed by the Terraform Ingress Controller|
 
 ## Getting started

@@ -95,6 +95,9 @@ const (
 
 	// The IngressAnnotationLbMethod specifies the loadbalancer method
 	IngressAnnotationLbMethod = "terraform.ingress.kubernetes.io/lb-method"
+
+	// The IngressAnnotationLockTimeout specifies the terraform "-lock-timeout" CLI parameter
+	IngressAnnotationLockTimeout = "terraform.ingress.kubernetes.io/lock-timeout"
 )
 
 // EventType type of event associated with an informer
@@ -492,9 +495,12 @@ func (c *Controller) processItem(event Event) error {
 
 func (c *Controller) deleteIngress(ing *nwv1beta1.Ingress) error {
 	lbUID := "a" + strings.Replace(string(ing.UID), "-", "", -1)
+	lockTimeout := getStringFromIngressAnnotation(ing, IngressAnnotationLockTimeout, "0s")
+
 	lb := terraform.Terraform{
 		AuthOpts:        &c.config.OpenStack,
 		LoadBalancerUID: lbUID,
+		LockTimeout:     lockTimeout,
 	}
 
 	return c.terraform.DeleteLoadbalancer(lb, c.kubeClient.CoreV1(), ing.ObjectMeta.Namespace)
@@ -677,6 +683,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 	}
 
 	lbMethod := validateLbMethod(getStringFromIngressAnnotation(ing, IngressAnnotationLbMethod, "ROUND_ROBIN"))
+	lockTimeout := getStringFromIngressAnnotation(ing, IngressAnnotationLockTimeout, "0s")
 
 	lb := terraform.Terraform{
 		AuthOpts:                &c.config.OpenStack,
@@ -691,6 +698,7 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		IsInternal:              isInternal,
 		ManageSecurityGroups:    c.config.Terraform.ManageSecurityGroups,
 		UseOctavia:              useOctavia,
+		LockTimeout:             lockTimeout,
 		Monitor: terraform.Monitor{
 			CreateMonitor: c.config.Terraform.CreateMonitor,
 			Delay:         c.config.Terraform.MonitorDelay,

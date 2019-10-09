@@ -38,6 +38,7 @@ type Terraform struct {
 	SubnetID                string
 	IsInternal              bool
 	UseOctavia              bool
+	LockTimeout             string
 	FloatingIPNetworkID     string
 	FloatingIPSubnetID      string
 	ManageSecurityGroups    bool
@@ -228,26 +229,28 @@ func (*Terraform) DeleteLoadbalancer(lb Terraform, client v1core.CoreV1Interface
 	// this is needed in case when new ingress.tf is broken
 	// terraform will rely on the state file only
 	tfFile := path.Join(dir, "ingress.tf")
-	_, err = os.Stat(tfFile)
-	if !os.IsNotExist(err) {
-		err = os.Remove(tfFile)
-		if err != nil {
-			return fmt.Errorf("failed to delete the terraform script from %q: %v", tfFile, err)
-		}
+
+	// TODO: support other providers
+	err = ioutil.WriteFile(tfFile, []byte(`provider "openstack" {}`), 0600)
+	if err != nil {
+		return fmt.Errorf("failed to save an empty terraform script to %q: %v", tfFile, err)
 	}
 
-	init := exec.Command("terraform", "init")
+	init := exec.Command("terraform", "init", fmt.Sprintf("-lock-timeout=%s", lb.LockTimeout))
 	init.Dir = dir
+	init.Stdout = os.Stdout
+	init.Stderr = os.Stderr
+	init.Env = append(os.Environ(), optsToEnv(&lb)...)
 	err = init.Run()
 	if err != nil {
 		return fmt.Errorf("failed to init the terraform: %v", err)
 	}
 
-	cmd := exec.Command("terraform", "destroy", "-auto-approve")
+	cmd := exec.Command("terraform", "destroy", "-auto-approve", fmt.Sprintf("-lock-timeout=%s", lb.LockTimeout))
+	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(), optsToEnv(&lb)...)
-	cmd.Dir = dir
 	err = cmd.Run()
 	if err != nil {
 		e := updateTerraformState(client.Secrets(namespace), lb.LoadBalancerUID)
@@ -302,7 +305,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 		return "", fmt.Errorf("failed to save the terraform script to %q: %v", tfFile, err)
 	}
 
-	init := exec.Command("terraform", "init")
+	init := exec.Command("terraform", "init", fmt.Sprintf("-lock-timeout=%s", lb.LockTimeout))
 	init.Dir = dir
 	init.Stdout = os.Stdout
 	init.Stderr = os.Stderr
@@ -312,7 +315,7 @@ func (*Terraform) EnsureLoadBalancer(lb Terraform, client v1core.CoreV1Interface
 		return "", fmt.Errorf("failed to init the terraform: %v", err)
 	}
 
-	cmd := exec.Command("terraform", "apply", "-auto-approve")
+	cmd := exec.Command("terraform", "apply", "-auto-approve", fmt.Sprintf("-lock-timeout=%s", lb.LockTimeout))
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
