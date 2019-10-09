@@ -286,7 +286,7 @@ data:
     {{- end }}
     {{- end }}
     
-    {{- if $.ManageSecurityGroups }}
+    {{- if and ($.ManageSecurityGroups) ($.Pools) }}
     locals {
       port_ids = "${distinct(concat(
     {{- range $p := $.Pools }}

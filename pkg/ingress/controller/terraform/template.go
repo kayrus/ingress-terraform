@@ -283,7 +283,7 @@ resource "openstack_lb_l7rule_v2" "https_rule_host_{{ $r.PoolName }}_{{ $i }}" {
 {{- end }}
 {{- end }}
 
-{{- if $.ManageSecurityGroups }}
+{{- if and ($.ManageSecurityGroups) ($.Pools) }}
 locals {
   port_ids = "${distinct(concat(
 {{- range $p := $.Pools }}
