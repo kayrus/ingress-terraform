@@ -585,11 +585,11 @@ func getNodeNameForLB(node *apiv1.Node) (string, error) {
 
 	for _, addr := range addrs {
 		if addr.Type == apiv1.NodeHostName {
-			return addr.Address, nil
+			return strings.Replace(addr.Address, ".", "-", -1), nil
 		}
 	}
 
-	return addrs[0].Address, nil
+	return strings.Replace(addrs[0].Address, ".", "-", -1), nil
 }
 
 func secretExists(tls *[]terraform.TLS, name string) bool {
