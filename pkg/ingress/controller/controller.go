@@ -25,7 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
-	nwv1beta1 "k8s.io/api/networking/v1beta1"
+	nwv1beta1 "k8s.io/api/extensions/v1beta1"
 	apimetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -35,7 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	extlisters "k8s.io/client-go/listers/networking/v1beta1"
+	extlisters "k8s.io/client-go/listers/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
@@ -243,7 +243,7 @@ func NewController(conf config.Config) *Controller {
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
 		Interface: kubeClient.CoreV1().Events(""),
 	})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "openstack-ingress-controller"})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{Component: "terraform-ingress-controller"})
 
 	controller := &Controller{
 		config:                conf,
@@ -267,7 +267,7 @@ func NewController(conf config.Config) *Controller {
 	//TODO: watch for the node update
 	//TODO: watch for the configmap update
 
-	ingInformer := kubeInformerFactory.Networking().V1beta1().Ingresses()
+	ingInformer := kubeInformerFactory.Extensions().V1beta1().Ingresses()
 	ingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			addIng := obj.(*nwv1beta1.Ingress)
@@ -340,7 +340,7 @@ func NewController(conf config.Config) *Controller {
 	return controller
 }
 
-// Start starts the openstack ingress controller.
+// Start starts the terraform ingress controller.
 func (c *Controller) Start() {
 	defer close(c.stopCh)
 	defer utilruntime.HandleCrash()
@@ -396,7 +396,7 @@ func (c *Controller) nodeSyncLoop() {
 	ings := new(nwv1beta1.IngressList)
 	// TODO: only take ingresses without ip address into consideration
 	opts := apimetav1.ListOptions{}
-	if ings, err = c.kubeClient.NetworkingV1beta1().Ingresses("").List(opts); err != nil {
+	if ings, err = c.kubeClient.ExtensionsV1beta1().Ingresses("").List(opts); err != nil {
 		log.Errorf("Failed to retrieve current set of ingresses: %v", err)
 		return
 	}
@@ -942,7 +942,7 @@ func (c *Controller) updateIngressStatus(ing *nwv1beta1.Ingress, vip string) (*n
 	newIng := ing.DeepCopy()
 	newIng.Status.LoadBalancer = *newState
 
-	newObj, err := c.kubeClient.NetworkingV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
+	newObj, err := c.kubeClient.ExtensionsV1beta1().Ingresses(newIng.Namespace).UpdateStatus(newIng)
 	if err != nil {
 		return nil, err
 	}

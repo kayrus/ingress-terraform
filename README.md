@@ -132,7 +132,8 @@ $ kubectl -n kube-system apply -f deployment.yaml
 Expose the HTTP service as a node port and deploy the ingress resource:
 
 ```sh
-$ kubectl expose deployment my-service --type=NodePort --target-port=8080
+$ kubectl run --image=nginx nginx --port=80
+$ kubectl expose deployment nginx --type=NodePort --target-port=80
 $ kubectl apply -f test-terraform-ingress.yaml
 ```
 

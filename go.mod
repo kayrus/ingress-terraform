@@ -5,7 +5,6 @@ go 1.13
 require (
 	github.com/gophercloud/utils v0.0.0-20190829151529-94e6842399e5 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/prometheus/client_golang v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.4.0
@@ -17,7 +16,6 @@ require (
 	k8s.io/cloud-provider v0.0.0 // indirect
 	k8s.io/cloud-provider-openstack v1.16.0
 	k8s.io/klog v1.0.0
-	k8s.io/utils v0.0.0-20190923111123-69764acb6e8e // indirect
 )
 
 replace (

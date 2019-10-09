@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: ingress-tcp-services
 data:
-  9000: "tcp-service:8080"
+  9000: "nginx:80"
