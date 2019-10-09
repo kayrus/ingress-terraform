@@ -54,15 +54,13 @@ The following OpenStack auth options are supported:
   connotation, a deployment can use a geographical name for a region identifier
   such as `us-east`. Available regions are found under the `/v3/regions`
   endpoint of the Keystone API.
-* `tenant-id`: Used to specify the ID of the project where you want
-  to create your resources. When using Keystone V3 - which changed the
-  identifier `tenant` to `project` - the `tenant-id` value is automatically
-  mapped to the project construct in the API.
-* `tenant-name`: Used to specify the name of the project where you
+* `project-id`: Used to specify the ID of the project where you want
+  to create your resources.
+* `project-name`: Used to specify the name of the project where you
   want to create your resources.
-* `tenant-domain-id`: Used to specify the ID of the domain your project belongs
+* `project-domain-id`: Used to specify the ID of the domain your project belongs
   to.
-* `tenant-domain-name`: Used to specify the name of the domain your project
+* `project-domain-name`: Used to specify the name of the domain your project
   belongs to.
 * `user-domain-id`: Used to specify the ID of the domain your user belongs to.
 * `user-domain-name`: Used to specify the name of the domain your user belongs
@@ -89,8 +87,9 @@ data:
       auth-url: %os_auth_url%
       username: %os_username%
       password: %os_password%
-      tenant-id: %os_tenant_id%
+      project-id: %os_project_id%
       domain-id: %os_domain_id%
+      user-domain-id: %os_domain_id%
     terraform:
       subnet-id: 058d9dce-7a62-4d8c-ac82-6b217d697e81
       floating-network-id: 8f408a7c-4d03-4355-81c1-07713fa0caec
