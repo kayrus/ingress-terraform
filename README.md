@@ -143,6 +143,31 @@ Read ingress controller logs:
 $ kubectl -n kube-system logs -f -l k8s-app=terraform-ingress-controller
 ```
 
+### Expose UDP
+
+For example coredns deplyment:
+
+```sh
+$ kubectl -n kube-system expose deployment coredns --type=NodePort --port=53 --protocol=UDP --target-port=53
+```
+
+The configmap should look like:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-udp-services
+data:
+  53: "coredns:53"
+```
+
+The ingress resource annotation should look like:
+
+```yaml
+terraform.ingress.kubernetes.io/udp-configmap: ingress-udp-services
+```
+
 ## TODO
 
 * Handle signals, e.g. wait for terraform to finish, when ingress controller received the exit signal
