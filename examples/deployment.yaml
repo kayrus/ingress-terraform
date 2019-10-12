@@ -24,7 +24,7 @@ spec:
           operator: Exists
       containers:
         - name: terraform-ingress-controller
-          image: kayrus/ingress-terraform:latest
+          image: kayrus/ingress-terraform:0.0.1
           imagePullPolicy: Always
           args:
             - /bin/terraform-ingress-controller
