@@ -16,7 +16,7 @@ Loadbalancers can be created within the Kubernetes Cloud Providers, but their co
 
 ## Supported clouds
 
-* OpenStack
+* OpenStack ([Barbican](https://wiki.openstack.org/wiki/Barbican) is required for the `TERMINATED_HTTPS` support)
 
 ## Features
 
