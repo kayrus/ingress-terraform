@@ -172,6 +172,7 @@ terraform.ingress.kubernetes.io/udp-configmap: ingress-udp-services
 
 * Handle signals, e.g. wait for terraform to finish, when ingress controller received the exit signal
 * Add finalizer to the ingress resource
+* Retry on error
 * Add intermediate CA support (so far they can be concatenated into the certificate)
 * Output terraform script diff
 * Prepend logging loadbalancer UID
