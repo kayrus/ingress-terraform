@@ -98,6 +98,10 @@ const (
 
 	// The IngressAnnotationLockTimeout specifies the terraform "-lock-timeout" CLI parameter
 	IngressAnnotationLockTimeout = "terraform.ingress.kubernetes.io/lock-timeout"
+
+	// IngressAnnotationProxyProtocol specifies whether to use the PROXY protocol for pool members
+	// Available only when "terraform.ingress.kubernetes.io/use-octavia" is set to true
+	IngressAnnotationProxyProtocol = "terraform.ingress.kubernetes.io/proxy-protocol"
 )
 
 // EventType type of event associated with an informer
@@ -660,6 +664,15 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationUseOctavia, err)
 	}
 
+	proxyProtocol, err := strconv.ParseBool(getStringFromIngressAnnotation(ing, IngressAnnotationProxyProtocol, "false"))
+	if err != nil {
+		return fmt.Errorf("unknown annotation %s: %v", IngressAnnotationProxyProtocol, err)
+	}
+
+	if proxyProtocol && !useOctavia {
+		return fmt.Errorf("Cannot use PROXY protocol, when %s is false", IngressAnnotationUseOctavia)
+	}
+
 	internalSetting := getStringFromIngressAnnotation(ing, IngressAnnotationInternal, "true")
 	isInternal, err := strconv.ParseBool(internalSetting)
 	if err != nil {
@@ -753,10 +766,15 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 		}
 
 		pool := terraform.Pool{
-			Primary:  true,
-			Name:     poolName,
-			Protocol: "HTTP",
-			Method:   lbMethod,
+			Primary: true,
+			Name:    poolName,
+			Method:  lbMethod,
+		}
+
+		if proxyProtocol {
+			pool.Protocol = "PROXY"
+		} else {
+			pool.Protocol = "HTTP"
 		}
 
 		if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -793,9 +811,14 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				}
 
 				pool := terraform.Pool{
-					Name:     poolName,
-					Protocol: "HTTP",
-					Method:   lbMethod,
+					Name:   poolName,
+					Method: lbMethod,
+				}
+
+				if proxyProtocol {
+					pool.Protocol = "PROXY"
+				} else {
+					pool.Protocol = "HTTP"
 				}
 
 				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -854,9 +877,14 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				}
 
 				pool := terraform.Pool{
-					Name:     poolName,
-					Protocol: "TCP",
-					Method:   lbMethod,
+					Name:   poolName,
+					Method: lbMethod,
+				}
+
+				if proxyProtocol {
+					pool.Protocol = "PROXY"
+				} else {
+					pool.Protocol = "TCP"
 				}
 
 				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -912,9 +940,15 @@ func (c *Controller) ensureIngress(ing *nwv1beta1.Ingress, nodes []*apiv1.Node) 
 				}
 
 				pool := terraform.Pool{
-					Name:     poolName,
-					Protocol: "UDP",
-					Method:   lbMethod,
+					Name:   poolName,
+					Method: lbMethod,
+				}
+
+				// TODO: needs verification
+				if proxyProtocol {
+					pool.Protocol = "PROXY"
+				} else {
+					pool.Protocol = "UDP"
 				}
 
 				if pool.Members, err = convertNodesToMembers(nodes, nodePort); err != nil {
@@ -1040,12 +1074,10 @@ func getStringFromIngressAnnotation(ingress *nwv1beta1.Ingress, annotationKey st
 // validateLbMethod validates the loadbalancer method. If it is not valid, then default "ROUND_ROBIN" is used
 func validateLbMethod(lbMethod string) string {
 	switch lbMethod {
-	case "ROUND_ROBIN":
-		return "ROUND_ROBIN"
-	case "LEAST_CONNECTIONS":
-		return "LEAST_CONNECTIONS"
-	case "SOURCE_IP":
-		return "SOURCE_IP"
+	case "ROUND_ROBIN",
+		"LEAST_CONNECTIONS",
+		"SOURCE_IP":
+		return lbMethod
 	}
 
 	return "ROUND_ROBIN"
